@@ -58,6 +58,7 @@ async def swiftagents_run(query: str) -> dict:
         )
     )
     client.queue_text("Swiftagents answer")
+    client.queue_text("Swiftagents answer (secondary)")
 
     tools = ToolRegistry()
 
