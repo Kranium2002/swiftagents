@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=67", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "swiftagents"
+version = "0.1.0"
+description = "Superfast logprob-native agent runtime"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{name = "swiftagents contributors"}]
+license = {text = "Apache-2.0"}
+keywords = ["agents", "llm", "logprobs", "async", "tools"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: Apache Software License",
+]
+
+dependencies = [
+  "httpx>=0.24",
+  "pydantic>=2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=7.4",
+  "pytest-asyncio>=0.23",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["swiftagents*"]

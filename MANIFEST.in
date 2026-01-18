@@ -1,0 +1,4 @@
+exclude airassist/*
+recursive-exclude airassist *
+global-exclude .env
+global-exclude *.log
