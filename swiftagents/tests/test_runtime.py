@@ -247,6 +247,7 @@ async def test_tool_filter_removes_tool():
             raw={"mock": True},
         )
     )
+    client.queue_text("Answer using RAG evidence")
 
     tools = ToolRegistry()
     tools.register(DummyTool("RAG", delay_s=0.0))

@@ -188,7 +188,8 @@ class AgentRuntime:
                 decisions=decisions,
             )
 
-        shortlist = shortlist_tools(query, self._tools.list_specs(), self._config.max_shortlist)
+        tools = await self._apply_tool_filter(query, self._tools.list_specs(), trace)
+        shortlist = shortlist_tools(query, tools, self._config.max_shortlist)
         trace.add("shortlist", data={"tools": [t.name for t in shortlist]})
 
         decision = await self._cached_decision(query, shortlist)

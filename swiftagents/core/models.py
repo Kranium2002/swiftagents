@@ -72,7 +72,7 @@ class _OpenAIBaseClient:
         payload: Dict[str, Any] = {
             "model": self._model,
             "messages": messages,
-            "max_tokens": max_tokens,
+            "max_completion_tokens": max_tokens,
             "temperature": temperature,
         }
         if response_format is not None:
@@ -90,6 +90,14 @@ class _OpenAIBaseClient:
             resp = await self._client.post(url, json=payload, headers=headers)
         except httpx.HTTPError as exc:
             raise ModelClientError(str(exc)) from exc
+
+        if resp.status_code == 400 and "max_completion_tokens" in resp.text:
+            payload.pop("max_completion_tokens")
+            payload["max_tokens"] = max_tokens
+            try:
+                resp = await self._client.post(url, json=payload, headers=headers)
+            except httpx.HTTPError as exc:
+                raise ModelClientError(str(exc)) from exc
 
         if resp.status_code >= 400:
             raise ModelClientError(f"HTTP {resp.status_code}: {resp.text}")
