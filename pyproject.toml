@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "swiftagents"
-version = "0.1.2"
+version = "0.1.3"
 description = "Superfast logprob-native agent runtime"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -20,7 +20,6 @@ classifiers = [
 dependencies = [
   "httpx>=0.24",
   "pydantic>=2.0",
-  "python-dotenv (>=1.2.1,<2.0.0)",
 ]
 
 [project.optional-dependencies]
