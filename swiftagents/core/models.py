@@ -35,8 +35,19 @@ class ModelClient(Protocol):
         logprobs: bool,
         top_logprobs: int,
         response_format: Optional[Dict[str, Any]] = None,
+        reasoning_effort: Optional[str] = None,
     ) -> ModelResponse:
         ...
+
+
+_REASONING_MODEL_PREFIXES = ("gpt-5", "o1", "o3")
+_REASONING_LOGPROBS_MIN_TOKENS = 64
+_REASONING_DEFAULT_EFFORT = "low"
+
+
+def _is_reasoning_model(model: str) -> bool:
+    model_lower = model.lower()
+    return any(model_lower.startswith(p) for p in _REASONING_MODEL_PREFIXES)
 
 
 class _OpenAIBaseClient:
@@ -48,6 +59,7 @@ class _OpenAIBaseClient:
         model: str,
         timeout_s: float = 30.0,
         headers: Optional[Dict[str, str]] = None,
+        reasoning_effort: Optional[str] = None,
     ) -> None:
         self._api_key = api_key
         self._base_url = base_url.rstrip("/")
@@ -55,6 +67,8 @@ class _OpenAIBaseClient:
         self._timeout_s = timeout_s
         self._headers = headers or {}
         self._client = httpx.AsyncClient(timeout=timeout_s)
+        self._reasoning_effort = reasoning_effort
+        self._is_reasoning = _is_reasoning_model(model)
 
     async def close(self) -> None:
         await self._client.aclose()
@@ -68,6 +82,7 @@ class _OpenAIBaseClient:
         logprobs: bool,
         top_logprobs: int,
         response_format: Optional[Dict[str, Any]] = None,
+        reasoning_effort: Optional[str] = None,
     ) -> ModelResponse:
         payload: Dict[str, Any] = {
             "model": self._model,
@@ -79,7 +94,34 @@ class _OpenAIBaseClient:
             payload["response_format"] = response_format
         if logprobs:
             payload["logprobs"] = True
-            payload["top_logprobs"] = top_logprobs
+            payload["top_logprobs"] = min(top_logprobs, 5)
+
+        # Reasoning models (gpt-5*, o1*, o3*) share their max_completion_tokens
+        # budget between reasoning tokens and output tokens.
+        #
+        # Priority: per-call reasoning_effort > constructor reasoning_effort > auto.
+        #
+        # Auto behaviour when neither is set:
+        #   logprobs=True  → effort="none" (classification doesn't need reasoning;
+        #                    small token budgets would be consumed by reasoning,
+        #                    causing a 500).  Temperature & logprobs stay.
+        #   logprobs=False → effort="low"  (answer generation benefits from
+        #                    reasoning).  Temperature stripped (unsupported when
+        #                    effort != none).
+        #
+        # Per-call callers can override with reasoning_effort="none" to keep
+        # temperature control for deterministic classification without logprobs.
+        if self._is_reasoning:
+            effort = reasoning_effort or self._reasoning_effort
+            if effort is None:
+                effort = "none" if logprobs else _REASONING_DEFAULT_EFFORT
+            payload["reasoning_effort"] = effort
+            if logprobs and effort == "none":
+                payload["max_completion_tokens"] = max(
+                    max_tokens, _REASONING_LOGPROBS_MIN_TOKENS
+                )
+            if effort != "none":
+                payload.pop("temperature", None)
 
         headers = dict(self._headers)
         if self._api_key:
@@ -115,6 +157,7 @@ class OpenAIChatCompletionsClient(_OpenAIBaseClient):
         base_url: str = "https://api.openai.com/v1",
         timeout_s: float = 30.0,
         headers: Optional[Dict[str, str]] = None,
+        reasoning_effort: Optional[str] = None,
     ) -> None:
         super().__init__(
             api_key=api_key,
@@ -122,6 +165,7 @@ class OpenAIChatCompletionsClient(_OpenAIBaseClient):
             model=model,
             timeout_s=timeout_s,
             headers=headers,
+            reasoning_effort=reasoning_effort,
         )
 
 
@@ -188,6 +232,7 @@ class MockModelClient:
         logprobs: bool,
         top_logprobs: int,
         response_format: Optional[Dict[str, Any]] = None,
+        reasoning_effort: Optional[str] = None,
     ) -> ModelResponse:
         await asyncio.sleep(0)
         self.calls.append(

@@ -54,7 +54,7 @@ class AgentConfig:
     decompose_split_threshold: float = 0.6
     decompose_margin_threshold: float = 0.2
     decompose_max_subquestions: int = 3
-    decompose_top_logprobs: int = 10
+    decompose_top_logprobs: int = 5
     decompose_decision_max_tokens: int = 6
     decompose_decision_temperature: float = 0.0
     decompose_prompt_template: Optional[str] = None

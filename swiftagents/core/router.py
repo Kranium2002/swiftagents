@@ -25,7 +25,7 @@ class ToolDecision:
 @dataclass
 class RouterConfig:
     max_shortlist: int = 4
-    top_logprobs: int = 20
+    top_logprobs: int = 5
     temperature: float = 0.0
     max_tokens: int = 6
     prompt_template: Optional[str] = None
