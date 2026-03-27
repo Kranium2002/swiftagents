@@ -40,7 +40,7 @@ class ModelClient(Protocol):
         ...
 
 
-_REASONING_MODEL_PREFIXES = ("gpt-5", "o1", "o3")
+_REASONING_MODEL_PREFIXES = ("gpt-5", "o1", "o3", "o4")
 _REASONING_LOGPROBS_MIN_TOKENS = 64
 _REASONING_DEFAULT_EFFORT = "low"
 
@@ -69,6 +69,15 @@ class _OpenAIBaseClient:
         self._client = httpx.AsyncClient(timeout=timeout_s)
         self._reasoning_effort = reasoning_effort
         self._is_reasoning = _is_reasoning_model(model)
+
+    def with_model(self, model: str) -> "_OpenAIBaseClient":
+        return _OpenAIBaseClient(
+            api_key=self._api_key,
+            base_url=self._base_url,
+            model=model,
+            timeout_s=self._timeout_s,
+            headers=self._headers or None,
+        )
 
     async def close(self) -> None:
         await self._client.aclose()

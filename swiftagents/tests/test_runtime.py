@@ -3,7 +3,12 @@ import asyncio
 import pytest
 
 from swiftagents.core.judge import Judge, JudgeConfig
-from swiftagents.core.models import MockModelClient, ModelResponse
+from swiftagents.core.models import (
+    MockModelClient,
+    ModelResponse,
+    OpenAIChatCompletionsClient,
+    _OpenAIBaseClient,
+)
 from swiftagents.core.scheduler import AgentConfig, AgentRuntime
 from swiftagents.core.tools import ToolRegistry, ToolResult, ToolSpec
 
@@ -267,3 +272,60 @@ async def test_tool_filter_removes_tool():
 
     result = await runtime.run("Need info")
     assert result.used_tool == "RAG"
+
+
+def test_auto_router_client_created_for_reasoning_model():
+    client = OpenAIChatCompletionsClient(api_key="fake", model="gpt-5.2")
+    tools = ToolRegistry()
+    tools.register(DummyTool("RAG"))
+    runtime = AgentRuntime(client=client, tools=tools)
+    assert isinstance(runtime._router_client, _OpenAIBaseClient)
+    assert runtime._router_client._model == "gpt-4.1-mini"
+    assert runtime._router_client is not runtime._client
+
+
+def test_auto_router_client_skipped_for_non_reasoning_model():
+    client = OpenAIChatCompletionsClient(api_key="fake", model="gpt-4o")
+    tools = ToolRegistry()
+    tools.register(DummyTool("RAG"))
+    runtime = AgentRuntime(client=client, tools=tools)
+    assert runtime._router_client is runtime._client
+
+
+def test_auto_router_client_skipped_when_router_model_none():
+    client = OpenAIChatCompletionsClient(api_key="fake", model="gpt-5.2")
+    tools = ToolRegistry()
+    tools.register(DummyTool("RAG"))
+    runtime = AgentRuntime(
+        client=client, tools=tools, config=AgentConfig(router_model=None)
+    )
+    assert runtime._router_client is runtime._client
+
+
+def test_auto_router_client_skipped_for_mock_client():
+    client = MockModelClient()
+    tools = ToolRegistry()
+    tools.register(DummyTool("RAG"))
+    runtime = AgentRuntime(client=client, tools=tools)
+    assert runtime._router_client is runtime._client
+
+
+def test_custom_router_model_override():
+    client = OpenAIChatCompletionsClient(api_key="fake", model="gpt-5.2")
+    tools = ToolRegistry()
+    tools.register(DummyTool("RAG"))
+    runtime = AgentRuntime(
+        client=client, tools=tools, config=AgentConfig(router_model="gpt-4.1")
+    )
+    assert runtime._router_client._model == "gpt-4.1"
+
+
+def test_with_model_preserves_connection_details():
+    client = OpenAIChatCompletionsClient(
+        api_key="test-key", model="gpt-5.2", base_url="https://custom.api.com/v1"
+    )
+    router = client.with_model("gpt-4o-mini")
+    assert router._api_key == "test-key"
+    assert router._base_url == "https://custom.api.com/v1"
+    assert router._model == "gpt-4o-mini"
+    assert router._is_reasoning is False

@@ -11,7 +11,7 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 from .cache import TTLCache, make_cache_key
 from .judge import Judge, JudgeConfig, JudgeResult
 from .metrics import CostTracker, Metrics, Trace
-from .models import ModelClient
+from .models import ModelClient, _OpenAIBaseClient, _is_reasoning_model
 from .prompts import DECOMPOSE_PROMPT, FINAL_ANSWER_PROMPT, SPLIT_DECISION_PROMPT
 from .router import RouterConfig, ToolDecision, ToolRouter, shortlist_tools
 from .tools import ToolRegistry, ToolResult
@@ -61,6 +61,7 @@ class AgentConfig:
     decompose_decision_prompt_template: Optional[str] = None
     decompose_generation_max_tokens: int = 128
     decompose_generation_temperature: float = 0.2
+    router_model: Optional[str] = "gpt-4.1-mini"
 
 
 @dataclass
@@ -100,7 +101,15 @@ class AgentRuntime:
         self._client = client
         self._tools = tools
         self._config = config or AgentConfig()
-        self._router = ToolRouter(client, router_config)
+        router_client = client
+        if (
+            self._config.router_model
+            and isinstance(client, _OpenAIBaseClient)
+            and _is_reasoning_model(client._model)
+        ):
+            router_client = client.with_model(self._config.router_model)
+        self._router_client = router_client
+        self._router = ToolRouter(router_client, router_config)
         self._judge = judge
         self._decision_cache = decision_cache or TTLCache(ttl_s=self._config.decision_cache_ttl_s)
         self._tool_cache = tool_cache or TTLCache(ttl_s=self._config.tool_cache_ttl_s)
@@ -280,9 +289,9 @@ class AgentRuntime:
         return decision
 
     def _is_uncertain(self, decision: ToolDecision) -> bool:
-        if decision.entropy > self._config.entropy_threshold:
+        if decision.entropy >= self._config.entropy_threshold:
             return True
-        if decision.margin < self._config.margin_threshold:
+        if decision.margin <= self._config.margin_threshold:
             return True
         return False
 
@@ -567,7 +576,7 @@ class AgentRuntime:
             {"role": "system", "content": prompt_template},
             {"role": "user", "content": query},
         ]
-        response = await self._client.complete(
+        response = await self._router_client.complete(
             messages,
             max_tokens=self._config.decompose_decision_max_tokens,
             temperature=self._config.decompose_decision_temperature,
