@@ -760,7 +760,7 @@ class AgentRuntime:
         tool_filter = self._config.tool_filter
         if tool_filter is None:
             return tools
-        result = tool_filter(query, tools, self._client)
+        result = tool_filter(query, tools, self._router_client)
         if asyncio.iscoroutine(result):
             filtered = await result
         else:
